@@ -25,10 +25,6 @@ Como o script recebe um SparkContext:
   No Glue criamos o SparkContext e o GlueContext dentro de main(); a
   SparkSession vem de glue.spark_session. As funcoes recebem `sc` como
   parametro, igual à aula-05.
-
-⚠️ ANTES DE SUBIR: complete os dois TODOs abaixo (word_count_rdd e
-   top_n_palavras). Enquanto nao completar, as funcoes levantam
-   NotImplementedError (mas o modulo importa/compila normalmente).
 """
 
 import sys
@@ -51,38 +47,33 @@ except ImportError:  # ambiente local sem o SDK do Glue
 
 def word_count_rdd(sc, lines):
     """
-    TODO 1 (mesmo contrato da aula-05):
-    Receba `sc` (SparkContext) e uma lista de strings `lines` (cada item é uma
-    "linha" de texto) e retorne a contagem de palavras usando RDDs:
-      1. Crie um RDD a partir de `lines` com `sc.parallelize(lines)`.
-      2. Use `flatMap` para quebrar cada linha em palavras (separadas por
-         espaco) JA convertidas para minusculas.
-      3. Use `map` para transformar cada palavra em (palavra, 1).
-      4. Use `reduceByKey` para somar as ocorrencias de cada palavra.
-      5. Retorne uma lista de tuplas (palavra, contagem), ORDENADA por contagem
-         decrescente e, em empate, por ordem alfabetica crescente da palavra.
+    Recebe `sc` (SparkContext) e uma lista de strings `lines` e retorna a
+    contagem de palavras usando RDDs, ordenada por contagem decrescente e,
+    em empate, por ordem alfabetica crescente da palavra.
 
     Exemplo:
         word_count_rdd(sc, ["gato rato gato", "rato correu gato"])
         -> [("gato", 3), ("rato", 2), ("correu", 1)]
     """
-    raise NotImplementedError("TODO 1: implemente word_count_rdd")
+    rdd = sc.parallelize(lines)
+    contagem = (
+        rdd.flatMap(lambda line: line.lower().split())
+        .map(lambda word: (word, 1))
+        .reduceByKey(lambda a, b: a + b)
+    )
+    return sorted(contagem.collect(), key=lambda par: (-par[1], par[0]))
 
 
 def top_n_palavras(sc, lines, n):
     """
-    TODO 2:
-    Retorne as `n` palavras mais frequentes de `lines`, como lista de tuplas
-    (palavra, contagem), na mesma ordenacao de word_count_rdd (contagem
-    decrescente e, em empate, alfabetica crescente).
-
-    Dica: reutilize word_count_rdd(sc, lines) e pegue os `n` primeiros itens.
+    Retorna as `n` palavras mais frequentes de `lines`, reutilizando
+    word_count_rdd.
 
     Exemplo:
         top_n_palavras(sc, ["gato rato gato", "rato correu gato"], 2)
         -> [("gato", 3), ("rato", 2)]
     """
-    raise NotImplementedError("TODO 2: implemente top_n_palavras")
+    return word_count_rdd(sc, lines)[:n]
 
 
 def main():
@@ -94,6 +85,14 @@ def main():
     # Contexto Spark/Glue: o SparkContext e o GlueContext são gerenciados pelo
     # Glue; a SparkSession vem do GlueContext. O Job registra início/fim.
     sc = SparkContext()
+
+    # Corrige um erro comum do Glue ao usar saveAsTextFile (RDD) sobre S3:
+    # o Hadoop, por padrao, tenta usar um "DirectOutputCommitter" que nao
+    # esta disponivel no runtime do Glue. Forcamos o commiter padrao.
+    sc._jsc.hadoopConfiguration().set(
+        "mapred.output.committer.class", "org.apache.hadoop.mapred.FileOutputCommitter"
+    )
+
     glue = GlueContext(sc)
     spark = glue.spark_session
     job = Job(glue)
