@@ -19,46 +19,42 @@ Como testar localmente antes de enviar a PR:
 
 def insert_products(collection, products):
     """
-    TODO 1:
-    Receba uma `collection` (pymongo Collection) e uma lista de
-    dicionarios `products`, insira todos de uma vez (`insert_many`), e
-    retorne a QUANTIDADE de documentos inseridos.
+    Insere todos os `products` de uma vez (`insert_many`), e retorna a
+    QUANTIDADE de documentos inseridos.
     """
-    raise NotImplementedError("TODO 1: implemente insert_products")
+    result = collection.insert_many(products)
+    return len(result.inserted_ids)
 
 
 def find_by_category(collection, category):
     """
-    TODO 2:
-    Busque todos os documentos da `collection` cujo campo "category"
-    seja igual a `category`, ORDENADOS por "price" CRESCENTE. Retorne
-    como uma lista de dicionarios, SEM o campo "_id" (use projecao para
-    excluir: `{"_id": 0}`).
+    Busca todos os documentos da `collection` cujo campo "category"
+    seja igual a `category`, ORDENADOS por "price" CRESCENTE, sem o
+    campo "_id".
     """
-    raise NotImplementedError("TODO 2: implemente find_by_category")
+    cursor = collection.find({"category": category}, {"_id": 0}).sort("price", 1)
+    return list(cursor)
 
 
 def average_price_by_category(collection):
     """
-    TODO 3:
-    Use o pipeline de agregacao do MongoDB (`collection.aggregate([...])`)
-    para calcular o PRECO MEDIO ("price") agrupado por "category".
-    Retorne um dicionario {category: preco_medio}.
-
-    Dica: um pipeline com um unico estagio `$group` resolve:
-        [{"$group": {"_id": "$category", "avg_price": {"$avg": "$price"}}}]
+    Usa o pipeline de agregacao do MongoDB para calcular o PRECO MEDIO
+    ("price") agrupado por "category". Retorna um dicionario
+    {category: preco_medio}.
     """
-    raise NotImplementedError("TODO 3: implemente average_price_by_category")
+    pipeline = [{"$group": {"_id": "$category", "avg_price": {"$avg": "$price"}}}]
+    return {doc["_id"]: doc["avg_price"] for doc in collection.aggregate(pipeline)}
 
 
 def increment_stock(collection, product_id, delta):
     """
-    TODO 4:
-    Incremente (ou decremente, se `delta` for negativo) o campo "stock"
-    do produto cujo "product_id" seja igual a `product_id`, usando o
-    operador atomico `$inc` do MongoDB (`update_one`). Depois, busque o
-    documento atualizado e retorne o NOVO valor de "stock".
-
-    Se nenhum produto com esse `product_id` existir, retorne `None`.
+    Incrementa (ou decrementa) o campo "stock" do produto cujo
+    "product_id" seja igual a `product_id`, usando o operador atomico
+    `$inc`. Retorna o NOVO valor de "stock", ou None se o produto nao
+    existir.
     """
-    raise NotImplementedError("TODO 4: implemente increment_stock")
+    result = collection.update_one({"product_id": product_id}, {"$inc": {"stock": delta}})
+    if result.matched_count == 0:
+        return None
+    updated = collection.find_one({"product_id": product_id})
+    return updated["stock"]
